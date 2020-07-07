@@ -1,6 +1,9 @@
 package com.github.alphabs.gif2video;
 
 import android.Manifest;
+import android.content.Context;
+import android.media.MediaScannerConnection;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.util.Log;
@@ -21,6 +24,10 @@ import com.developer.filepicker.model.DialogProperties;
 import com.developer.filepicker.view.FilePickerDialog;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributeView;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 
 import pub.devrel.easypermissions.EasyPermissions;
@@ -86,6 +93,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     void loadFiles(final String path) {
+        final Context tContext = this;
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -103,22 +111,24 @@ public class MainActivity extends AppCompatActivity {
                 for (int i = 0; i < files.length; i++) {
                     try {
                         File item = files[i];
-                        long lastMod = item.lastModified();
+
+                        BasicFileAttributes attr = Files.readAttributes(item.toPath(), BasicFileAttributes.class);
+                        long createdAt = attr.creationTime().toMillis();
 
                         String basePath = item.getParent();
                         String fileName = item.getName();
 
-                        Log.i("ffmpeg excute", fileName);
                         String name = fileName.substring(0, fileName.lastIndexOf("."));
                         String ext = fileName.substring(fileName.lastIndexOf("."));
+                        Log.i("ffmpeg excute", name + " / " + ext);
 
-                        if (!ext.equals("gif"))
+                        if (!ext.equals(".gif"))
                             continue;
 
                         String inPath = basePath + "/" + fileName;
                         String outTempPath = basePath + "/" + name + ".temp.mp4";
                         String outPath = basePath + "/" + name + ".mp4";
-                        File outFile = new File(outPath);
+                        final File outFile = new File(outPath);
 
                         if (outFile.exists())
                             continue;
@@ -137,12 +147,23 @@ public class MainActivity extends AppCompatActivity {
                         }
 
                         outTempFile.renameTo(outFile);
-                        outFile.setLastModified(lastMod);
+
+                        BasicFileAttributeView attributes = Files.getFileAttributeView(outFile.toPath(), BasicFileAttributeView.class);
+                        FileTime time = FileTime.fromMillis(createdAt);
+                        attributes.setTimes(time, time, time);
 
                         final int progressValue = i + 1;
                         handler.post(new Runnable() {
                             @Override
                             public void run() {
+                                MediaScannerConnection.scanFile(tContext,
+                                        new String[] { outFile.getPath() }, null,
+                                        new MediaScannerConnection.OnScanCompletedListener() {
+                                            public void onScanCompleted(String path, Uri uri) {
+                                                Log.i("ExternalStorage", "Scanned " + path + ":");
+                                                Log.i("ExternalStorage", "-> uri=" + uri);
+                                            }
+                                        });
                                 progressbar.setProgress(progressValue);
                                 progressText.setText(progressValue + " / " + fileLength);
                             }
