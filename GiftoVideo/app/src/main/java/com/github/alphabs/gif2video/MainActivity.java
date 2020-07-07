@@ -10,8 +10,6 @@ import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseAdapter;
-import android.widget.ProgressBar;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -22,6 +20,7 @@ import com.developer.filepicker.controller.DialogSelectionListener;
 import com.developer.filepicker.model.DialogConfigs;
 import com.developer.filepicker.model.DialogProperties;
 import com.developer.filepicker.view.FilePickerDialog;
+import com.github.alphabs.gif2video.databinding.ActivityMainBinding;
 
 import java.io.File;
 import java.nio.file.Files;
@@ -35,39 +34,74 @@ import pub.devrel.easypermissions.EasyPermissions;
 public class MainActivity extends AppCompatActivity {
 
     Handler handler;
-    ImageAdapter imgAdapter;
-    TextView progressText;
-    ProgressBar progressbar;
+    private ActivityMainBinding binding;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        View view = binding.getRoot();
+        setContentView(view);
 
         handler = new Handler();
 
-        progressText = (TextView) findViewById(R.id.progressText);
-        progressbar = (ProgressBar) findViewById(R.id.progressbar);
+        binding.btnSelectPath.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onBtnSelectPathClicked(v);
+            }
+        });
 
-        String[] perms = {
-                Manifest.permission.READ_EXTERNAL_STORAGE,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-        };
+        binding.btnStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onBtnStartClicked(v);
+            }
+        });
 
-        if (EasyPermissions.hasPermissions(this, perms)) {
-            Toast.makeText(this, "Permissions Pass", Toast.LENGTH_LONG).show();
-        }
-        else {
-            EasyPermissions.requestPermissions(this, "accept plz", 31, perms);
-        }
+        binding.btnStop.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onBtnStopClicked(v);
+            }
+        });
+
+        binding.btnTestStart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onBtnTestStartClicked(v);
+            }
+        });
+
+        binding.btnHelp.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                onBtnHelpClicked(v);
+            }
+        });
+
+        checkPermissions();
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    private void onBtnSelectPathClicked(View v) {
 
-        // Forward results to EasyPermissions
-        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this);
+    }
+
+    private void onBtnStartClicked(View v) {
+        onButtonTestClicked(v);
+    }
+
+    private void onBtnStopClicked(View v) {
+
+    }
+
+    private void onBtnTestStartClicked(View v) {
+
+    }
+
+    private void onBtnHelpClicked(View v) {
+
     }
 
     public void onButtonTestClicked(View v) {
@@ -104,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-                        progressbar.setMax(fileLength);
+                        binding.progressbar.setMax(fileLength);
                     }
                 });
 
@@ -164,8 +198,8 @@ public class MainActivity extends AppCompatActivity {
                                                 Log.i("ExternalStorage", "-> uri=" + uri);
                                             }
                                         });
-                                progressbar.setProgress(progressValue);
-                                progressText.setText(progressValue + " / " + fileLength);
+                                binding.progressbar.setProgress(progressValue);
+                                binding.tPath.setText(progressValue + " / " + fileLength);
                             }
                         });
                     }
@@ -186,6 +220,28 @@ public class MainActivity extends AppCompatActivity {
 
     String getCommand(String input, String output) {
         return "-i \""+input+"\" -c:v libx264 -movflags faststart -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" -pix_fmt yuv420p \"" + output + "\"";
+    }
+
+    private void checkPermissions() {
+        String[] perms = {
+                Manifest.permission.READ_EXTERNAL_STORAGE,
+                Manifest.permission.WRITE_EXTERNAL_STORAGE
+        };
+
+        if (EasyPermissions.hasPermissions(this, perms)) {
+            Toast.makeText(this, "Permissions Pass", Toast.LENGTH_LONG).show();
+        }
+        else {
+            EasyPermissions.requestPermissions(this, "accept plz", 31, perms);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        // Forward results to EasyPermissions
+        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this);
     }
 
     class ImageAdapter extends BaseAdapter {
