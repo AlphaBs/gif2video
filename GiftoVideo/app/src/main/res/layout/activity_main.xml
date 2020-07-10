@@ -38,7 +38,7 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp">
+        android:layout_height="60dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -53,6 +53,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/txtPath"
+            android:inputType="text"
+            android:maxLines="1"
             android:layout_toRightOf="@+id/tPath"
             android:layout_toLeftOf="@+id/btnSelectPath"/>
 
@@ -66,7 +68,30 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp">
+        android:layout_height="60dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:id="@+id/tInputExt"
+            android:layout_alignParentTop="true"
+            android:layout_alignParentBottom="true"
+            android:gravity="center"
+            android:text="입력파일 확장자 : "/>
+
+        <EditText
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:id="@+id/txtInputExt"
+            android:inputType="text"
+            android:maxLines="1"
+            android:layout_toRightOf="@+id/tInputExt"
+            android:layout_margin="5dp"/>
+    </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -87,7 +112,7 @@
 
     <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="40dp">
+        android:layout_height="60dp">
 
         <TextView
             android:layout_width="wrap_content"
@@ -102,6 +127,8 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:id="@+id/txtExt"
+            android:inputType="text"
+            android:maxLines="1"
             android:layout_toRightOf="@+id/tExt"
             android:layout_margin="5dp"/>
     </RelativeLayout>
@@ -115,7 +142,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:id="@+id/txtArg"
-        android:maxHeight="100dp" />
+        android:maxHeight="180dp" />
 
     <TextView
         android:id="@+id/tProgress"
@@ -130,5 +157,9 @@
         android:layout_height="wrap_content"
         android:progress="0"/>
 
+    <TextView
+        android:id="@+id/tTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
 
 </LinearLayout>

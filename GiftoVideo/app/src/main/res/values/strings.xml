@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Gif to Video</string>
+    <string name="working_service_text">작업 진행 중</string>
 </resources>
