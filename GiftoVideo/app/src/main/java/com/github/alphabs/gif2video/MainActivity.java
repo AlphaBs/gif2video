@@ -1,21 +1,16 @@
 package com.github.alphabs.gif2video;
 
 import android.Manifest;
-import android.content.Context;
-import android.media.MediaScannerConnection;
-import android.net.Uri;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.BaseAdapter;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.arthenica.mobileffmpeg.Config;
-import com.arthenica.mobileffmpeg.FFmpeg;
 import com.developer.filepicker.controller.DialogSelectionListener;
 import com.developer.filepicker.model.DialogConfigs;
 import com.developer.filepicker.model.DialogProperties;
@@ -23,17 +18,12 @@ import com.developer.filepicker.view.FilePickerDialog;
 import com.github.alphabs.gif2video.databinding.ActivityMainBinding;
 
 import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.attribute.BasicFileAttributeView;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.nio.file.attribute.FileTime;
-import java.util.ArrayList;
 
 import pub.devrel.easypermissions.EasyPermissions;
 
 public class MainActivity extends AppCompatActivity {
 
-    Handler handler;
+    private Handler handler;
     private ActivityMainBinding binding;
 
     @Override
@@ -45,6 +35,15 @@ public class MainActivity extends AppCompatActivity {
         setContentView(view);
 
         handler = new Handler();
+
+        String[] presetNames = new String[] {
+                "libx264 default (권장)",
+                "libvpx"
+        };
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<String>(
+                this, android.R.layout.simple_list_item_1, presetNames);
+        binding.spPreset.setAdapter(adapter);
 
         binding.btnSelectPath.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -81,30 +80,22 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        binding.spPreset.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                onSpPresetItemSelected(position);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
+
         checkPermissions();
     }
 
     private void onBtnSelectPathClicked(View v) {
-
-    }
-
-    private void onBtnStartClicked(View v) {
-        onButtonTestClicked(v);
-    }
-
-    private void onBtnStopClicked(View v) {
-
-    }
-
-    private void onBtnTestStartClicked(View v) {
-
-    }
-
-    private void onBtnHelpClicked(View v) {
-
-    }
-
-    public void onButtonTestClicked(View v) {
         DialogProperties properties = new DialogProperties();
         properties.selection_mode = DialogConfigs.SINGLE_MODE;
         properties.selection_type = DialogConfigs.DIR_SELECT;
@@ -119,107 +110,74 @@ public class MainActivity extends AppCompatActivity {
         dialog.setDialogSelectionListener(new DialogSelectionListener() {
             @Override
             public void onSelectedFilePaths(String[] files) {
-                Log.i("FilePicker", files[0]);
-                loadFiles(files[0]);
+                if (files != null && files.length > 0)
+                    binding.txtPath.setText(files[0]);
             }
         });
         dialog.show();
     }
 
-    void loadFiles(final String path) {
-        final Context tContext = this;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                File dir = new File(path);
-                File[] files = dir.listFiles();
+    private void onBtnStartClicked(View v) {
+        FFmpegServiceOption option = new FFmpegServiceOption();
+        option.setTargetDir(binding.txtPath.getText().toString());
+        option.setFfmpegArguments(binding.txtArg.getText().toString());
+        option.setOutputExtension(binding.txtExt.getText().toString());
+        option.setTargetExtension(binding.txtInputExt.getText().toString());
+        option.setPreserveFileDate(binding.cbPreserveDate.isChecked());
+        option.setRemoveCompletedFile(binding.cbRemoveCompleted.isChecked());
 
-                final int fileLength = files.length;
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        binding.progressbar.setMax(fileLength);
-                    }
-                });
+        Intent intent = new Intent(this, FFmpegService.class);
+        intent.setAction(FFmpegService.START_ACTION);
+        intent.putExtra("option", option);
+        startForegroundService(intent);
 
-                for (int i = 0; i < files.length; i++) {
-                    try {
-                        File item = files[i];
-
-                        BasicFileAttributes attr = Files.readAttributes(item.toPath(), BasicFileAttributes.class);
-                        long createdAt = attr.creationTime().toMillis();
-
-                        String basePath = item.getParent();
-                        String fileName = item.getName();
-
-                        String name = fileName.substring(0, fileName.lastIndexOf("."));
-                        String ext = fileName.substring(fileName.lastIndexOf("."));
-                        Log.i("ffmpeg excute", name + " / " + ext);
-
-                        if (!ext.equals(".gif"))
-                            continue;
-
-                        String inPath = basePath + "/" + fileName;
-                        String outTempPath = basePath + "/" + name + ".temp.mp4";
-                        String outPath = basePath + "/" + name + ".mp4";
-                        final File outFile = new File(outPath);
-
-                        if (outFile.exists())
-                            continue;
-
-                        File outTempFile = new File(outTempPath);
-                        if (outTempFile.exists()) {
-                            outTempFile.delete();
-                        }
-
-                        Log.i("ffmpeg excute", inPath + " + " + outTempPath);
-                        int rc = FFmpeg.execute(getCommand(inPath, outTempPath));
-                        if (rc != 0) {
-                            Log.i("ffmpeg", Integer.toString(rc));
-                            Config.printLastCommandOutput(Log.INFO);
-                            continue;
-                        }
-
-                        outTempFile.renameTo(outFile);
-
-                        BasicFileAttributeView attributes = Files.getFileAttributeView(outFile.toPath(), BasicFileAttributeView.class);
-                        FileTime time = FileTime.fromMillis(createdAt);
-                        attributes.setTimes(time, time, time);
-
-                        final int progressValue = i + 1;
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                MediaScannerConnection.scanFile(tContext,
-                                        new String[] { outFile.getPath() }, null,
-                                        new MediaScannerConnection.OnScanCompletedListener() {
-                                            public void onScanCompleted(String path, Uri uri) {
-                                                Log.i("ExternalStorage", "Scanned " + path + ":");
-                                                Log.i("ExternalStorage", "-> uri=" + uri);
-                                            }
-                                        });
-                                binding.progressbar.setProgress(progressValue);
-                                binding.tPath.setText(progressValue + " / " + fileLength);
-                            }
-                        });
-                    }
-                    catch (Exception ex) {
-                        ex.printStackTrace();
-                    }
-                }
-
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(getApplicationContext(), "done", Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-        }).start();
+        //setStartUIEnable(false);
     }
 
-    String getCommand(String input, String output) {
-        return "-i \""+input+"\" -c:v libx264 -movflags faststart -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" -pix_fmt yuv420p \"" + output + "\"";
+    private void onBtnStopClicked(View v) {
+        Intent intent = new Intent(this, FFmpegService.class);
+        intent.setAction(FFmpegService.STOP_ACTION);
+        startService(intent);
+
+        //handler.postDelayed(new Runnable() {
+        //    @Override
+        //    public void run() {
+        //        setStartUIEnable(true);
+        //    }
+        //}, 2000);
+    }
+
+    private void onBtnTestStartClicked(View v) {
+
+    }
+
+    private void onBtnHelpClicked(View v) {
+
+    }
+
+    private void onSpPresetItemSelected(int pos) {
+        String ext = "";
+        String arg = "";
+
+        switch (pos) {
+            case 0:
+                ext = "mp4";
+                arg = "-i {input} -c:v libx264 -movflags faststart -f {outext} -vf \"pad=ceil(iw/2)*2:ceil(ih/2)*2\" -pix_fmt yuv420p {output}";
+                break;
+            case 1:
+                ext = "mp4";
+                arg = "-i {input} -c:v libvpx -b:v 3M -auto-alt-ref 0 -f {outext} {output}";
+                break;
+        }
+
+        binding.txtArg.setText(arg);
+        binding.txtExt.setText(ext);
+    }
+
+    private void setStartUIEnable(boolean value) {
+        binding.btnStart.setEnabled(value);
+        binding.btnTestStart.setEnabled(value);
+        binding.btnStop.setEnabled(!value);
     }
 
     private void checkPermissions() {
@@ -242,36 +200,5 @@ public class MainActivity extends AppCompatActivity {
 
         // Forward results to EasyPermissions
         EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this);
-    }
-
-    class ImageAdapter extends BaseAdapter {
-        ArrayList<ImageItem> items = new ArrayList<ImageItem>();
-
-        @Override
-        public int getCount() {
-            return items.size();
-        }
-
-        public void addItem(ImageItem item) {
-            items.add(item);
-        }
-
-        public ImageItem getItem(int pos) {
-            return items.get(pos);
-        }
-
-        @Override
-        public long getItemId(int pos) {
-            return pos;
-        }
-
-        @Override
-        public View getView(int pos, View convertView, ViewGroup viewGroup) {
-            ImageItemView view = new ImageItemView(getApplicationContext());
-            ImageItem item = items.get(pos);
-            view.setThumbnail(item.getPath());
-            view.setChecked(item.getChecked());
-            return view;
-        }
     }
 }

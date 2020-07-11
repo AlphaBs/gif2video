@@ -1,4 +1,6 @@
 <resources>
     <string name="app_name">Gif to Video</string>
     <string name="working_service_text">작업 진행 중</string>
+    <string name="channel_name">FFMPEG 작업 상태</string>
+    <string name="channel_description">FFMPEG 인코딩/디코딩 작업 진행률, 완료 알림을 나타냅니다.</string>
 </resources>

@@ -133,6 +133,20 @@
             android:layout_margin="5dp"/>
     </RelativeLayout>
 
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/cbPreserveDate"
+        android:checked="true"
+        android:text="파일 시간 보존"/>
+
+    <CheckBox
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/cbRemoveCompleted"
+        android:checked="true"
+        android:text="완료 파일 제거"/>
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
