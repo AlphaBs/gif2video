@@ -7,9 +7,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.media.MediaScannerConnection
-import android.os.Build
-import android.os.IBinder
+import android.os.*
 import android.util.Log
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.arthenica.mobileffmpeg.Config
@@ -28,13 +28,66 @@ class FFmpegService : Service() {
         const val START_ACTION = "com.github.alphabs.gif2video.START_ACTION"
         const val STOP_ACTION = "com.github.alphabs.git2video.STOP_ACTION"
 
-        var isRunning: Boolean = false
+        const val IDLE = 0;
+        const val RUNNING = 1;
+        const val STOPPING = 2;
+
+        const val MSG_UNREGISTER_CLIENT = 9;
+        const val MSG_REGISTER_CLIENT = 10;
+        const val MSG_STATE = 11;
+        const val MSG_PROGRESS = 12;
+        const val MSG_STOP = 13;
     }
+
+    val mClients: ArrayList<Messenger> =  ArrayList<Messenger>();
+
+    inner class IncomingHandler : Handler() {
+        override fun handleMessage(msg: Message) {
+            when (msg.what) {
+                MSG_STOP -> stopFFmpeg();
+                MSG_REGISTER_CLIENT -> {
+                    mClients.add(msg.replyTo);
+                    msg.replyTo.send(Message.obtain(null, MSG_STATE, state, 0));
+                };
+                MSG_UNREGISTER_CLIENT -> mClients.remove(msg.replyTo);
+                else -> super.handleMessage(msg);
+            }
+        }
+    }
+    val mMessenger: Messenger = Messenger(IncomingHandler());
+
+    private var state: Int = IDLE;
 
     private var notification: NotificationCompat.Builder? = null
 
+    private fun setState(value: Int) {
+        state = value;
+        sendToClients(Message.obtain(null, MSG_STATE, state, 0));
+    }
+
+    private fun stopFFmpeg() {
+        setState(STOPPING);
+    }
+
+    private fun sendToClients(msg: Message) {
+        for (client in mClients) {
+            try {
+                val newMsg = Message();
+                newMsg.copyFrom(msg);
+
+                client.send(newMsg);
+            } catch (e: RemoteException) {
+                Log.e("sendToClients remoteexception", e.toString());
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
+    }
+
+    override fun onBind(intent: Intent): IBinder {
+        return mMessenger.binder;
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -61,9 +114,10 @@ class FFmpegService : Service() {
             th.start()
         }
         else if (intent.action == STOP_ACTION) {
-            isRunning = false
+            stopFFmpeg();
         }
 
+        Toast.makeText(this, "Service Started", Toast.LENGTH_LONG).show();
         return START_REDELIVER_INTENT
     }
 
@@ -82,18 +136,14 @@ class FFmpegService : Service() {
         }
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
-        return null
-    }
-
     override fun onDestroy() {
-        Log.i("FFmpegService", "service destroy")
-        isRunning = false
-        super.onDestroy()
+        Log.i("FFmpegService", "service destroy");
+        setState(IDLE);
+        super.onDestroy();
     }
 
     private fun handleActionStart(option: FFmpegServiceOption) {
-        isRunning = true
+        setState(RUNNING);
 
         val tContext = this as Context
         NotificationManagerCompat.from(this).apply {
@@ -111,10 +161,10 @@ class FFmpegService : Service() {
 
             val fileLength = files.size
             for (i in 0 until fileLength) {
-                try {
-                    if (!isRunning)
-                        break
+                if (state != RUNNING)
+                    break
 
+                try {
                     val item = files[i]
 
                     val basePath = item.parent
@@ -183,6 +233,8 @@ class FFmpegService : Service() {
                     notification?.setProgress(fileLength, progressValue, false)
                     notification?.setContentText("진행 중 $progressValue / $fileLength")
                     notify(WORKING_NOTIFICATION_ID, notification?.build()!!)
+
+                    sendToClients(Message.obtain(null, MSG_PROGRESS, progressValue, fileLength));
                 }
             }
 
@@ -190,8 +242,12 @@ class FFmpegService : Service() {
             notification?.setContentText("완료")
             notify(WORKING_NOTIFICATION_ID, notification?.build()!!)
 
-            isRunning = false
-            stopSelf()
+            setState(IDLE);
+
+            while (true) {
+                stopSelf();
+                Thread.sleep(1000);
+            }
         }
     }
 

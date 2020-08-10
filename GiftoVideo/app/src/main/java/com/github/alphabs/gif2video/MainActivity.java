@@ -1,9 +1,17 @@
 package com.github.alphabs.gif2video;
 
 import android.Manifest;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.os.Messenger;
+import android.os.RemoteException;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -25,6 +33,56 @@ public class MainActivity extends AppCompatActivity {
 
     private Handler handler;
     private ActivityMainBinding binding;
+
+    private static final int IDLE = 0;
+    private static final int RUNNING = 1;
+    private static final int STOPPING = 2;
+
+    private boolean serviceBound = false;
+    private ServiceConnection connection = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            fBindMessenger = new Messenger(service);
+            fBindMessenger = new Messenger(service);
+
+            try {
+                Message msg = Message.obtain(null, FFmpegService.MSG_REGISTER_CLIENT);
+                msg.replyTo = fMessenger;
+                fBindMessenger.send(msg);
+            }
+            catch (RemoteException e) {
+                Log.i("failed to set replyTo" , e.toString());
+            }
+
+            serviceBound = true;
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            fBindMessenger = null;
+            serviceBound = false;
+        }
+    };
+
+    private Messenger fBindMessenger;
+    private Messenger fMessenger = new Messenger(new IncomingHandler());
+    class IncomingHandler extends Handler {
+        @Override
+        public void handleMessage(Message msg) {
+            Log.d("handleMessage", Integer.toString(msg.what));
+            switch (msg.what) {
+                case FFmpegService.MSG_STATE:
+                    Log.d("MSG_STATE", Integer.toString(msg.arg1));
+                    setState(msg.arg1);
+                    break;
+                case FFmpegService.MSG_PROGRESS:
+                    setServiceProgress(msg.arg1, msg.arg2);
+                    break;
+                default:
+                    super.handleMessage(msg);
+            }
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,6 +151,31 @@ public class MainActivity extends AppCompatActivity {
         });
 
         checkPermissions();
+
+        doBind();
+    }
+
+    private void doBind() {
+        Intent intent = new Intent(this, FFmpegService.class);
+        bindService(intent, connection, Context.BIND_AUTO_CREATE);
+    }
+
+    private void doUnbind() {
+        if (serviceBound) {
+            if (fBindMessenger != null) {
+                try {
+                    Message msg = Message.obtain(null, FFmpegService.MSG_UNREGISTER_CLIENT);
+                    msg.replyTo = fMessenger;
+                    fBindMessenger.send(msg);
+                }
+                catch (RemoteException e) {
+                    Log.i("Failed to doUnbind", e.toString());
+                }
+            }
+
+            unbindService(connection);
+            serviceBound = false;
+        }
     }
 
     private void onBtnSelectPathClicked(View v) {
@@ -131,20 +214,22 @@ public class MainActivity extends AppCompatActivity {
         intent.putExtra("option", option);
         startForegroundService(intent);
 
-        //setStartUIEnable(false);
+        doBind();
     }
 
     private void onBtnStopClicked(View v) {
-        Intent intent = new Intent(this, FFmpegService.class);
-        intent.setAction(FFmpegService.STOP_ACTION);
-        startService(intent);
-
-        //handler.postDelayed(new Runnable() {
-        //    @Override
-        //    public void run() {
-        //        setStartUIEnable(true);
-        //    }
-        //}, 2000);
+        if (serviceBound) {
+            try {
+                fBindMessenger.send(Message.obtain(null, FFmpegService.MSG_STOP));
+            } catch (RemoteException e) {
+                Log.e("remote exception", e.toString());
+            }
+        }
+        else {
+            Intent intent = new Intent(this, FFmpegService.class);
+            intent.setAction(FFmpegService.STOP_ACTION);
+            startService(intent);
+        }
     }
 
     private void onBtnTestStartClicked(View v) {
@@ -174,10 +259,40 @@ public class MainActivity extends AppCompatActivity {
         binding.txtExt.setText(ext);
     }
 
-    private void setStartUIEnable(boolean value) {
-        binding.btnStart.setEnabled(value);
-        binding.btnTestStart.setEnabled(value);
-        binding.btnStop.setEnabled(!value);
+    private void setState(int state) {
+        if (state == IDLE) {
+            binding.tProgress.setText("IDLE");
+            binding.btnStart.setEnabled(true);
+            binding.btnTestStart.setEnabled(true);
+            binding.btnStop.setEnabled(false);
+            setServiceProgress(0,0);
+
+            doUnbind();
+        }
+        else if (state == STOPPING) {
+            binding.tProgress.setText("STOPPING");
+            binding.btnStart.setEnabled(false);
+            binding.btnTestStart.setEnabled(false);
+            binding.btnStop.setEnabled(false);
+        }
+        else if (state == RUNNING) {
+            binding.tProgress.setText("RUNNING");
+            binding.btnStart.setEnabled(false);
+            binding.btnTestStart.setEnabled(false);
+            binding.btnStop.setEnabled(true);
+        }
+    }
+
+    private void setServiceProgress(int value, int total) {
+        binding.progressbar.setMax(total);
+        binding.progressbar.setProgress(value);
+        binding.tTextView.setText(value + " / " + total);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        doUnbind();
     }
 
     private void checkPermissions() {
@@ -187,7 +302,7 @@ public class MainActivity extends AppCompatActivity {
         };
 
         if (EasyPermissions.hasPermissions(this, perms)) {
-            Toast.makeText(this, "Permissions Pass", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Permissions Pass", Toast.LENGTH_SHORT).show();
         }
         else {
             EasyPermissions.requestPermissions(this, "accept plz", 31, perms);
