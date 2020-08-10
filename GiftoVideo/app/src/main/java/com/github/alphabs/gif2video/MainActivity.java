@@ -209,6 +209,24 @@ public class MainActivity extends AppCompatActivity {
         option.setPreserveFileDate(binding.cbPreserveDate.isChecked());
         option.setRemoveCompletedFile(binding.cbRemoveCompleted.isChecked());
 
+        String errMsg = "";
+        if (option.getTargetDir().isEmpty())
+            errMsg = "경로를 입력해 주세요";
+
+        if (option.getOutputExtension().isEmpty())
+            errMsg = "출력파일 확장자를 입력해 주세요";
+
+        if (option.getFfmpegArguments().isEmpty())
+            errMsg = "FFMPEG 명령어를 입력해 주세요";
+
+        if (option.getTargetExtension().isEmpty())
+            errMsg = "입력파일 확장자를 입력해 주세요";
+
+        if (!errMsg.isEmpty()) {
+            Toast.makeText(this, errMsg, Toast.LENGTH_LONG).show();
+            return;
+        }
+
         Intent intent = new Intent(this, FFmpegService.class);
         intent.setAction(FFmpegService.START_ACTION);
         intent.putExtra("option", option);
